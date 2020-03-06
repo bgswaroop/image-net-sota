@@ -12,7 +12,9 @@ from data.base_data import BaseData
 import xml.etree.ElementTree as ET
 from configuration import root_data_dir
 from data.data_genarator import DataGenerator
+from pathlib import Path
 import logging
+import tqdm
 
 logger = logging.getLogger(__name__)
 
@@ -29,51 +31,53 @@ class ImageNet(BaseData):
         self.test_data_gen = None
 
         # paths
-        self.__root_data_dir = root_data_dir
-        self.__train_data_dir = None
-        self.__val_data_dir = None
-        self.__test_data_dir = None
-        self.__train_labels_dir = None
-        self.__val_labels_dir = None
-        self.__data_tar_file = None
+        self._root_data_dir = root_data_dir
+        self._train_data_dir = None
+        self._val_data_dir = None
+        self._test_data_dir = None
+        self._train_labels_dir = None
+        self._val_labels_dir = None
+        self._data_tar_file = None
 
         # initialization flow
-        self.__set_dataset_paths()
-        self.__extract_image_labels()
-        self.__transform_val_dir_like_train_dir_hierarchy()
-        self.__configure_data_generators()
+        self._set_dataset_paths()
+        self._extract_image_labels()
+        self._transform_val_dir_like_train_dir_hierarchy()
+        self._configure_data_generators()
 
-    def __set_dataset_paths(self):
-        self.__train_data_dir = os.path.join(self.__root_data_dir, r"ILSVRC\Data\CLS-LOC\train")
-        self.__val_data_dir = os.path.join(self.__root_data_dir, r"ILSVRC\Data\CLS-LOC\val")
-        self.__test_data_dir = os.path.join(self.__root_data_dir, r"ILSVRC\Data\CLS-LOC\test")
-        self.__train_labels_dir = os.path.join(self.__root_data_dir, r"ILSVRC\Annotations\CLS-LOC\train")
-        self.__val_labels_dir = os.path.join(self.__root_data_dir, r"ILSVRC\Annotations\CLS-LOC\val")
-        self.__data_tar_file = r"C:\Users\MWP-WKS045278\Documents\Literature\Deep " \
-                               r"Learning\Datasets\imagenet_object_localization_patched2019.tar.gz "
+    def _set_dataset_paths(self):
+        self._train_data_dir = self._root_data_dir.joinpath(r"ILSVRC/Data/CLS-LOC/train")
+        self._val_data_dir = self._root_data_dir.joinpath(r"ILSVRC/Data/CLS-LOC/val")
+        self._test_data_dir = self._root_data_dir.joinpath(r"ILSVRC/Data/CLS-LOC/test")
+        self._train_labels_dir = self._root_data_dir.joinpath(r"ILSVRC/Annotations/CLS-LOC/train")
+        self._val_labels_dir = self._root_data_dir.joinpath(r"ILSVRC/Annotations/CLS-LOC/val")
+        self._data_tar_file = None
 
-    def __extract_image_labels(self):
+    def _extract_image_labels(self):
         """
         Assumption: images contain one or more objects of the same type, therefore each image is labelled
         with the label of the first annotated object.
         Here, we extract labels for both the training and the validation parts of the data.
         """
 
-        train_labels_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), r"cache/train_labels.pkl")
-        val_labels_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), r"cache/val_labels.pkl")
+        train_labels_file = Path(os.path.dirname(os.path.realpath(__file__))).joinpath(r"cache/train_labels.pkl")
+        val_labels_file = Path(os.path.dirname(os.path.realpath(__file__))).joinpath(r"cache/val_labels.pkl")
 
-        if os.path.exists(train_labels_file) and os.path.exists(val_labels_file):
-            with open(train_labels_file, 'rb') as f:
+        if train_labels_file.exists() and val_labels_file.exists():
+            logger.info("Loading pre-computed label files: {}, {}".format(train_labels_file, val_labels_file))
+            with train_labels_file.open('rb') as f:
                 self.train_labels = pickle.load(f)
-            with open(val_labels_file, 'rb') as f:
+            with val_labels_file.open('rb') as f:
                 self.val_labels = pickle.load(f)
         else:
-            train_file_names = glob(self.__train_labels_dir + r"/*/*")
-            val_file_names = glob(self.__val_labels_dir + r"/*")
+            logger.info("Computing the image_name -> ground_truth mapping")
+            train_file_names = glob(str(self._train_labels_dir) + r"/*/*")
+            val_file_names = glob(str(self._val_labels_dir) + r"/*")
             train_labels = {}
             val_labels = {}
 
-            for labels, file_names in [(train_labels, train_file_names), (val_labels, val_file_names)]:
+            for idx, (labels, file_names) in enumerate([(train_labels, train_file_names), (val_labels, val_file_names)]):
+                progress = tqdm.tqdm(desc="LabelSet{}".format(idx), total=len(file_names), mininterval=60)
                 for file_name in file_names:
                     root = ET.parse(file_name).getroot()
                     for idx, element in enumerate(root):
@@ -81,22 +85,24 @@ class ImageNet(BaseData):
                             label = root[idx][0].text  # value
                             filename = os.path.basename(file_name.split('.')[0])  # key
                             labels[filename] = label
+                    progress.update(1)
 
             # Labels are dictionaries, with image name (without extension) as their key,
             # mapped to the corresponding labels as their value.
             self.train_labels = train_labels
             self.val_labels = val_labels
 
-            with open(train_labels_file, 'wb+') as f:
+            logger.info("Saving the computed label files to: {}, {}".format(train_labels_file, val_labels_file))
+            with train_labels_file.open('wb+') as f:
                 pickle.dump(train_labels, f, pickle.HIGHEST_PROTOCOL)
-            with open(val_labels_file, 'wb+') as f:
+            with val_labels_file.open('wb+') as f:
                 pickle.dump(val_labels, f, pickle.HIGHEST_PROTOCOL)
 
-    # todo: go over the images in the test dir and generate ids (image paths)
-    def __configure_data_generators(self):
-        image_paths = glob(self.__train_data_dir + r"/*/*.JPEG")
-        class_folders = glob(self.__train_data_dir + r"/*")
-        labels_map = {os.path.basename(x): idx for idx, x in enumerate(class_folders)}
+    def _configure_data_generators(self):
+        image_paths = glob(str(self._train_data_dir) + r"*/*.JPEG")
+        class_folders = glob(str(self._train_data_dir) + r"/*")
+        labels_index = {item: idx for idx, item in enumerate(set(self.train_labels.values()))}
+        labels_map = {os.path.basename(x): labels_index[os.path.basename(x)] for idx, x in enumerate(class_folders)}
 
         training_data_split = 0.9  # value between 0 and 1
         assert (0 <= training_data_split <= 1)
@@ -108,11 +114,12 @@ class ImageNet(BaseData):
         training_data_paths = [image_paths[k] for k in training_indices]
         validation_data_paths = [image_paths[k] for k in validation_indices]
         self.train_data_gen = DataGenerator(training_data_paths, labels_map, batch_size=16, dim=(224, 224),
-                                            n_channels=3, n_classes=len(labels_map), shuffle=True)
+                                            n_channels=3, n_classes=1000, shuffle=True)
         self.val_data_gen = DataGenerator(validation_data_paths, labels_map, batch_size=16, dim=(224, 224),
-                                          n_channels=3, n_classes=len(labels_map), shuffle=True)
+                                          n_channels=3, n_classes=1000, shuffle=True)
+        # todo: go over the images in the test dir and generate ids (image paths)
 
-    # todo: Lading the data from a single tar.gz file (future work!)
+    # todo: Loading the data from a single tar.gz file (future work!)
     def __transform_data_into_hdf5(self):
         """ WARNING: This operation generates a hdf5 file with size ~1.25 times the size of the original dataset. May
             result in out of disk space. This is a onetime operation. The benefit of such a transformation will result
@@ -125,7 +132,7 @@ class ImageNet(BaseData):
                 q = pickle.load(f)
 
         else:
-            tar = tarfile.open(self.__data_tar_file)
+            tar = tarfile.open(self._data_tar_file)
             q = tar.getmembers()
             with open('cache/data_tarfile_members.pkl', 'wb+') as f:
                 pickle.dump(q, f, pickle.HIGHEST_PROTOCOL)
@@ -140,14 +147,14 @@ class ImageNet(BaseData):
         #         l.append(member)
 
         # Step 1: Read all the images using OpenCV (Among all the read methods that I know, OpenCV is the quickest)
-        train_image_paths = glob(os.path.join(self.__train_data_dir, r"/*/*"))
+        train_image_paths = glob(str(self._train_data_dir) + r"/*/*")
 
         # Step 2: Preprocess the images according to the AlexNet requirements
         for idx, image_path in enumerate(train_image_paths):
             img = cv2.imread(image_path)
             img = self.__preprocess_inputs(img)
 
-    def __transform_val_dir_like_train_dir_hierarchy(self):
+    def _transform_val_dir_like_train_dir_hierarchy(self):
         """
         Transforms the val_dir into the following hierarchy:
         val (dir)
@@ -164,20 +171,20 @@ class ImageNet(BaseData):
         :return: None
         """
 
-        image_files = glob(self.__val_data_dir + r"/*.JPEG")
-        if len(image_files) != 0:
-            # 1. Create class wise folders
-            if self.val_labels is None:
-                self.__extract_image_labels()
-            labels = set(self.val_labels.values())
-            for label in labels:
-                os.makedirs(os.path.join(self.__val_data_dir, label), exist_ok=True)
+        image_files = glob(str(self._val_data_dir) + r"/*.JPEG")
 
-            # 2. move the val images into the corresponding class wise folder
-            for image_file_path in image_files:
-                image_name = os.path.basename(image_file_path.split('.')[0])
-                destination_dir = os.path.join(self.__val_data_dir, self.val_labels[image_name])
-                shutil.move(src=image_file_path, dst=destination_dir)
+        # 1. Create class wise folders
+        if self.val_labels is None:
+            self._extract_image_labels()
+        labels = set(self.val_labels.values())
+        for label in labels:
+            os.makedirs(str(self._val_data_dir.joinpath(label)), exist_ok=True)
+
+        # 2. move the val images into the corresponding class wise folder
+        for image_file_path in image_files:
+            image_name = os.path.basename(image_file_path.split('.')[0])
+            destination_dir = self._val_data_dir.joinpath(self.val_labels[image_name])
+            shutil.move(src=image_file_path, dst=str(destination_dir))
 
     # # The overloaded method (ofourse cant use it in python simultaneously), used keras in-built data generators
     # def __configure_data_generators(self):

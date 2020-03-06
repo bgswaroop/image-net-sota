@@ -76,7 +76,7 @@ class AlexNetVanilla(BaseModel):
             optimizer=tf.keras.optimizers.SGD(learning_rate=0.01, momentum=0.9),
             # optimizer="adam",
             loss=tf.keras.losses.CategoricalCrossentropy(),
-            metrics=[tf.keras.metrics.TopKCategoricalAccuracy(k=2), "acc"]
+            metrics=[tf.keras.metrics.TopKCategoricalAccuracy(k=5), "acc"]
         )
         self.model.summary(print_fn=logger.info)
 
@@ -84,7 +84,7 @@ class AlexNetVanilla(BaseModel):
         """
         Perform the training of the Alex-net model
         """
-        runtime_data_dir = SessionSetup().get_session_folder_path()
+        runtime_data_dir = str(SessionSetup().get_session_folder_path())
 
         train_history = self.model.fit(
             x=self.data.train_data_gen,

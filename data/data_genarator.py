@@ -7,7 +7,7 @@ import cv2
 
 
 class DataGenerator(tf.keras.utils.Sequence):
-    def __init__(self, list_ids, labels, batch_size=16, dim=(224, 224), n_channels=3, n_classes=3, shuffle=True):
+    def __init__(self, list_ids, labels, batch_size=16, dim=(224, 224), n_channels=3, n_classes=1000, shuffle=True):
         """Initialization"""
         self.dim = dim
         self.batch_size = batch_size

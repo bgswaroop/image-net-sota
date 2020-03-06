@@ -24,23 +24,21 @@ class SessionSetup(metaclass=Singleton):
         self.setup_logger()
 
     def setup_session_directories(self):
-        if os.path.exists(session_dir) and os.path.isdir(session_dir):
+        if session_dir.exists() and session_dir.is_dir():
             self.session_folder_path = session_dir
         else:
             default_time_format = '%Y-%m-%d_%H.%M.%S'
             self.session_folder_name = datetime.now().strftime(default_time_format)
-            self.session_folder_path = os.path.join(root_session_dir, "runtime_data", self.session_folder_name)
-            os.makedirs(self.session_folder_path)
+            self.session_folder_path = root_session_dir.joinpath("runtime_data", self.session_folder_name)
+            os.makedirs(str(self.session_folder_path))
 
     def setup_logger(self):
         # root logger
         logger = logging.getLogger()
         logger.setLevel(logging.INFO)
 
-        self.log_filepath = os.path.join(self.session_folder_path, "run.log")
+        self.log_filepath = str(self.session_folder_path.joinpath("run.log"))
         file_handler = logging.FileHandler(self.log_filepath)
-        # todo: Redirect stdout and stderr to a logfile
-        # I'm not sure why still I have some logs from tensorflow which get logged to my console
         sys.stdout = open(self.log_filepath, "a")
         sys.stderr = open(self.log_filepath, "a")
 
@@ -59,6 +57,7 @@ class SessionSetup(metaclass=Singleton):
         tf_logger = logging.getLogger('tensorflow')
         tf_logger.setLevel(logging.DEBUG)
         tf_logger.addHandler(file_handler)
+        # I'm not sure why still I have some logs from tensorflow which get logged to my console
 
         logger.info("Logger file successfully initialized")
 

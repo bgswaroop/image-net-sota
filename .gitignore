@@ -1,3 +1,5 @@
 .idea/*
 /runtime_data/
 /venv/
+__pycache__/
+slurm*
