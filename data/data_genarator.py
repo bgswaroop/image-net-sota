@@ -6,6 +6,7 @@ from pathlib import Path
 import cv2
 
 
+# todo: data augmentation
 class DataGenerator(tf.keras.utils.Sequence):
     def __init__(self, list_ids, labels, batch_size=16, dim=(224, 224), n_channels=3, n_classes=1000, shuffle=True):
         """Initialization"""
@@ -18,7 +19,7 @@ class DataGenerator(tf.keras.utils.Sequence):
 
         self.n_classes = n_classes
         self.shuffle = shuffle
-        self.indexes = None
+        self.indexes = np.arange(len(self.list_ids))
         self.on_epoch_end()
 
     def on_epoch_end(self):
@@ -61,7 +62,7 @@ class DataGenerator(tf.keras.utils.Sequence):
         for i, image_path in enumerate(list_ids_temp):
             # Store sample
             # use OpenCV to read image
-            x[i, ] = self.__preprocess_inputs(image_path)
+            x[i,] = self.__preprocess_inputs(image_path)
 
             # Store class
             y[i] = self.labels[Path(image_path)._parts[-2]]

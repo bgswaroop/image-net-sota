@@ -1,17 +1,19 @@
 #!/bin/bash
 
 #SBATCH --job-name=AlexNetVanilla
-#SBATCH --time=06:00:00
+#SBATCH --time=00:15:00
 #SBATCH --mem=2000
+#SBATCH --gres=gpu:1
+#SBATCH --partition=gpu
+#SBATCH --cpus-per-task=1
 
 # echo starting_jobscript
-module load Python/3.6.4-foss-2019a
-module load cuDNN/7.4.2.24-CUDA-10.0.130
+TensorFlow/2.1.0-fosscuda-2019b-Python-3.7.4
 
 # echo activating environment
 source venv/bin/activate
 pip freeze
 
 # echo running_the_flow
-python3 run_flow.py
+python run_flow.py
 # echo completed_the_job

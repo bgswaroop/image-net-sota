@@ -99,7 +99,7 @@ class ImageNet(BaseData):
                 pickle.dump(val_labels, f, pickle.HIGHEST_PROTOCOL)
 
     def _configure_data_generators(self):
-        image_paths = glob(str(self._train_data_dir) + r"*/*.JPEG")
+        image_paths = glob(str(self._train_data_dir) + r"/*/*.JPEG")
         class_folders = glob(str(self._train_data_dir) + r"/*")
         labels_index = {item: idx for idx, item in enumerate(set(self.train_labels.values()))}
         labels_map = {os.path.basename(x): labels_index[os.path.basename(x)] for idx, x in enumerate(class_folders)}
@@ -113,9 +113,9 @@ class ImageNet(BaseData):
 
         training_data_paths = [image_paths[k] for k in training_indices]
         validation_data_paths = [image_paths[k] for k in validation_indices]
-        self.train_data_gen = DataGenerator(training_data_paths, labels_map, batch_size=16, dim=(224, 224),
+        self.train_data_gen = DataGenerator(training_data_paths, labels_map, batch_size=128, dim=(224, 224),
                                             n_channels=3, n_classes=1000, shuffle=True)
-        self.val_data_gen = DataGenerator(validation_data_paths, labels_map, batch_size=16, dim=(224, 224),
+        self.val_data_gen = DataGenerator(validation_data_paths, labels_map, batch_size=128, dim=(224, 224),
                                           n_channels=3, n_classes=1000, shuffle=True)
         # todo: go over the images in the test dir and generate ids (image paths)
 
