@@ -15,4 +15,5 @@ if __name__ == "__main__":
 
     alex_net.prepare_model()
     alex_net.compile_model()
+    alex_net.load_model()   # to continue training
     alex_net.train_model()

@@ -7,6 +7,8 @@ from cnn_models.base_model import BaseModel
 from data.imagenet_object_localization_challenge import ImageNet
 import pickle
 from utils.session_setup import SessionSetup
+import glob
+from pathlib import Path
 import logging
 
 logger = logging.getLogger(__name__)
@@ -19,6 +21,8 @@ class AlexNetVanilla(BaseModel):
         self.weight_decay = 0.0005
         self.start_epoch = 0
         self.end_epoch = 90
+
+        self.session_dir = str(SessionSetup().get_session_folder_path())
 
     def prepare_model(self):
         # Inputs
@@ -80,17 +84,53 @@ class AlexNetVanilla(BaseModel):
         )
         self.model.summary(print_fn=logger.info)
 
+    def load_model(self, epoch=-1):
+        """
+        Loads the model from the specified epoch or by default pick the last epoch (-1)
+        """
+        # search for the trained models in the session dir
+        trained_models = glob.glob(str(self.session_dir) + r"/trained_model_*.h5")
+
+        if len(trained_models) == 0 and epoch != -1:
+            logger.warning("Skipping loading pre-trained models. Starting model training from epoch 0.")
+            return
+        elif len(trained_models) == 0:
+            logger.info("Starting training fro epoch 0")
+            return
+
+        if epoch == -1:
+            largest_epoch = -1
+            largest_epoch_index = -1
+            for idx, model_path in enumerate(trained_models):
+                epoch_num = int(Path(model_path).name.split("_")[2][5:])
+                if epoch_num > largest_epoch:
+                    largest_epoch = epoch_num
+                    largest_epoch_index = idx
+            self.model.load_weights(trained_models[largest_epoch_index])
+            self.start_epoch = largest_epoch
+            logger.info("Loading weights from {}".format(trained_models[largest_epoch_index]))
+        else:
+            for model_path in trained_models:
+                epoch_num = int(Path(model_path).name.split("_")[2][5:])
+                if epoch_num == epoch:
+                    self.model.load_weights(trained_models[model_path])
+                    self.start_epoch = epoch_num
+                    logger.info("Loading weights from {}".format(model_path))
+                    return
+            logger.warning(
+                "Pre-trained model with epoch number {}, is not found in {}. Skipping loading pre-trained model.".
+                    format(epoch, self.session_dir))
+
     def train_model(self):
         """
         Perform the training of the Alex-net model
         """
-        runtime_data_dir = str(SessionSetup().get_session_folder_path())
 
         train_history = self.model.fit(
             x=self.data.train_data_gen,
             epochs=self.end_epoch,
             verbose=2,
-            callbacks=[SaveModelOnEpochEnd(runtime_data_dir, 10), LogLossOnBatchEnd(runtime_data_dir),
+            callbacks=[SaveModelOnEpochEnd(), LogLossOnBatchEnd(),
                        ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=2, min_lr=0.00001, verbose=1)],
             validation_data=self.data.val_data_gen,
             shuffle=False,  # This parameter may cause inconsistency between multiple runs with same inputs
@@ -100,7 +140,7 @@ class AlexNetVanilla(BaseModel):
 
         # save the training history
         filename = "train_history_epoch_{}_to_{}.pkl".format(self.start_epoch, self.end_epoch)
-        full_file_path = os.path.join(runtime_data_dir, filename)
+        full_file_path = os.path.join(self.session_dir, filename)
         with open(full_file_path, 'wb') as f:
             pickle.dump(train_history.history, f)
 

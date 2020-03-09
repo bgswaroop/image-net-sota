@@ -1,14 +1,14 @@
 #!/bin/bash
 
 #SBATCH --job-name=AlexNetVanilla
-#SBATCH --time=00:15:00
-#SBATCH --mem=2000
-#SBATCH --gres=gpu:1
+#SBATCH --time=51:00:00
+#SBATCH --mem=8000
+#SBATCH --gres=gpu:v100:1
 #SBATCH --partition=gpu
-#SBATCH --cpus-per-task=1
+#SBATCH --cpus-per-task=4
 
 # echo starting_jobscript
-TensorFlow/2.1.0-fosscuda-2019b-Python-3.7.4
+module load TensorFlow/2.1.0-fosscuda-2019b-Python-3.7.4
 
 # echo activating environment
 source venv/bin/activate

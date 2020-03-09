@@ -1,13 +1,14 @@
 import os
 import tensorflow as tf
+from configuration import session_dir
 import logging
 
 logger = logging.getLogger(__name__)
 
 
 class LogLossOnBatchEnd(tf.keras.callbacks.Callback):
-    def __init__(self, results_path, num_batches=25):
-        self.results_path = results_path
+    def __init__(self, num_batches=25):
+        self.results_path = session_dir
         self.num_batches = num_batches
         super().__init__()
 
@@ -20,9 +21,9 @@ class LogLossOnBatchEnd(tf.keras.callbacks.Callback):
 
 class SaveModelOnEpochEnd(tf.keras.callbacks.Callback):
 
-    def __init__(self, results_path, num_epochs=1):
+    def __init__(self, num_epochs=1):
         super().__init__()
-        self.results_path = results_path
+        self.results_path = session_dir
         self.num_epochs = num_epochs
 
     def on_epoch_end(self, epoch, logs=None):
@@ -32,7 +33,7 @@ class SaveModelOnEpochEnd(tf.keras.callbacks.Callback):
                 os.mkdir(self.results_path)
 
             self.model.save(
-                self.results_path + os.path.sep + "epoch{}_acc{}_loss{}_valAcc{}_valLoss{}.h5".format(
+                self.results_path + os.path.sep + "trained_model_epoch{}_acc{}_loss{}_valAcc{}_valLoss{}.h5".format(
                     epoch,
                     str(round(logs['acc'], 2)),
                     str(round(logs['loss'], 2)),
