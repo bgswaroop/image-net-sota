@@ -1,14 +1,18 @@
 # https://stanford.edu/~shervine/blog/keras-how-to-generate-data-on-the-fly
-import os
 import tensorflow as tf
 import numpy as np
 from pathlib import Path
 import cv2
+import tarfile
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # todo: data augmentation
 class DataGenerator(tf.keras.utils.Sequence):
-    def __init__(self, list_ids, labels, batch_size=16, dim=(224, 224), n_channels=3, n_classes=1000, shuffle=True):
+    def __init__(self, list_ids, labels, batch_size=16, dim=(224, 224), n_channels=3, n_classes=1000, shuffle=True,
+                 tar_file=None):
         """Initialization"""
         self.dim = dim
         self.batch_size = batch_size
@@ -16,11 +20,18 @@ class DataGenerator(tf.keras.utils.Sequence):
         self.list_ids = list_ids
         self.n_channels = n_channels
         self.image_size = 224
-
+        if tar_file is not None:
+            self.tar = tarfile.open(tar_file)
+        else:
+            self.tar = None
         self.n_classes = n_classes
         self.shuffle = shuffle
         self.indexes = np.arange(len(self.list_ids))
         self.on_epoch_end()
+
+    def __del__(self):
+        if self.tar is not None:
+            self.tar.close()
 
     def on_epoch_end(self):
         """Updates indexes after each epoch"""
@@ -33,11 +44,21 @@ class DataGenerator(tf.keras.utils.Sequence):
         :param img: Any rectangular RGB image as a numpy array
         :return: Cropped and resized image with dimensions 256 x 256
         """
+
+        if self.tar is not None:
+            with self.tar.extractfile(img_path) as f:
+                # from PIL import Image
+                # import io
+                # img = np.array(Image.open(io.BytesIO(f.read())))
+                file_bytes = np.asarray(bytearray(f.read()), dtype=np.uint8)
+                img = cv2.imdecode(file_bytes, 1)
+        else:
+            img = cv2.imread(img_path)
+
         # resize the input image keeping the shortest side to 256
-        img = cv2.imread(img_path)
         input_img_shape = np.array([img.shape[1], img.shape[0]])
         scale_factor = self.image_size / input_img_shape.min()
-        resized_img = cv2.resize(img, tuple(np.round(input_img_shape * scale_factor).astype(int)),
+        resized_img = cv2.resize(img.astype(float), tuple(np.round(input_img_shape * scale_factor).astype(int)),
                                  interpolation=cv2.INTER_LINEAR)
 
         # crop the centered input image to (256 x 256)
@@ -61,11 +82,13 @@ class DataGenerator(tf.keras.utils.Sequence):
         # Generate data
         for i, image_path in enumerate(list_ids_temp):
             # Store sample
-            # use OpenCV to read image
             x[i,] = self.__preprocess_inputs(image_path)
 
             # Store class
-            y[i] = self.labels[Path(image_path)._parts[-2]]
+            if self.tar is None:
+                y[i] = self.labels[Path(image_path)._parts[-2]]
+            else:
+                y[i] = self.labels[Path(image_path.name)._parts[-2]]
 
         return x, tf.keras.utils.to_categorical(y, num_classes=self.n_classes)
 

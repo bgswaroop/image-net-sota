@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 class LogLossOnBatchEnd(tf.keras.callbacks.Callback):
     def __init__(self, num_batches=25):
-        self.results_path = session_dir
+        self.results_path = str(session_dir)
         self.num_batches = num_batches
         super().__init__()
 
@@ -23,7 +23,7 @@ class SaveModelOnEpochEnd(tf.keras.callbacks.Callback):
 
     def __init__(self, num_epochs=1):
         super().__init__()
-        self.results_path = session_dir
+        self.results_path = str(session_dir)
         self.num_epochs = num_epochs
 
     def on_epoch_end(self, epoch, logs=None):
